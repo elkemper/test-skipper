@@ -10,8 +10,14 @@ import (
 	"strings"
 )
 
-const skippedFileName = "skipped.cfg"
-const delimiter = ", "
+const SkippedFileName = "skipped.cfg"
+const Comma = ","
+const Separator = Comma
+
+type Configuration struct {
+	FilePath string
+	Format   FileFormat
+}
 
 type Command uint8
 type FileFormat uint8
@@ -41,6 +47,8 @@ func (command Command) Name() string {
 }
 
 func main() {
+	configuration := GetConfiguration()
+	skippedFileName, fileFormat := configuration.FilePath, configuration.Format
 	flag.Parse()
 	args := flag.Args()
 	if len(args) > 0 {
@@ -53,7 +61,7 @@ func main() {
 		if !slices.Contains(possible, command) {
 			log.Fatalf("Provided command isn't possible.")
 		}
-		err = PerformAction(command, skippedFileName, testCodes)
+		err = PerformAction(skippedFileName, fileFormat, command, testCodes)
 		if err != nil {
 			log.Fatalf("Error:%s", err)
 			return
@@ -64,10 +72,14 @@ func main() {
 	}
 }
 
-func parseArgs(args []string) (Command, []string, error) {
+func GetConfiguration() Configuration {
+	return Configuration{SkippedFileName, PlainText}
+}
+
+func parseArgs(args []string) (Command, []TestCode, error) {
 	commandString := args[0]
-	command, err := parseCommand(commandString)
-	testCodes := args[1:]
+	command, err := parseCommandArg(commandString)
+	testCodes := parseTestCodesArgs(args[1:])
 	if err != nil {
 		return command, testCodes, err
 	}
@@ -85,21 +97,33 @@ func possibleCommands(skippedFileName string) []Command {
 	return []Command{Skip}
 }
 
+func parseTestCodesArgs(testCodeStrings []string) []TestCode {
+	testCodes := make([]TestCode, 0)
+	for _, stringCode := range testCodeStrings {
+		commaSeparatedParts := strings.Split(stringCode, Separator)
+		for _, part := range commaSeparatedParts {
+			part = strings.TrimSpace(part)
+			testCodes = append(testCodes, TestCode(part))
+		}
+	}
+	return testCodes
+}
+
 // PerformAction is the base function that receives all the arguments
 // and decides what to do.
-func PerformAction(command Command, skippedFileName string, testCodes []string) error {
+func PerformAction(skippedFileName string, fileFormat FileFormat, command Command, testCodes []TestCode) error {
 	var skippedTests SkippedTests
 	testSet := make(TestSet, 0)
 	skippedTests.Tests = testSet
 	var err error
 	if !bypassFileReading(skippedFileName, command) {
-		skippedTests, err = readSkippedTests(skippedFileName)
+		skippedTests, err = readSkippedTests(skippedFileName, fileFormat)
 		if err != nil {
 			return errors.New("error occurred in reading the file")
 		}
 	}
 
-	var notProcessed []string
+	var notProcessed []TestCode
 	var notProcessingReason string
 	if command == Skip {
 		notProcessed = skippedTests.Tests.add(testCodes)
@@ -112,14 +136,14 @@ func PerformAction(command Command, skippedFileName string, testCodes []string) 
 		fmt.Printf("Couldn't %s: %s. Reason: %s\n", command.Name(), notProcessed, notProcessingReason)
 	}
 	fmt.Printf("Saving %d code(s): %s\n", len(skippedTests.Tests), skippedTests.Tests.toString())
-	err = saveSkippedTests(skippedFileName, PlainText, skippedTests)
+	err = saveSkippedTests(skippedFileName, fileFormat, skippedTests)
 	if err != nil {
 		return errors.New("error occurred in writing to file")
 	}
 	return nil
 }
 
-func parseCommand(commandString string) (Command, error) {
+func parseCommandArg(commandString string) (Command, error) {
 	var command Command
 	switch commandString {
 	case "skip":
@@ -142,34 +166,42 @@ func bypassFileReading(skippedFileName string, command Command) bool {
 	return !fileExists && command == Skip
 }
 
-func saveSkippedTests(fileName string, format FileFormat, skippedTests SkippedTests) error {
+func saveSkippedTests(fileName string, fileFormat FileFormat, skippedTests SkippedTests) error {
 	var testCodesSingleString string
-	if format == PlainText {
-		testCodesSingleString = strings.Join(skippedTests.Tests.toString(), delimiter)
+	if fileFormat == PlainText {
+		const prettySeparator = Comma + " "
+		testCodesSingleString = strings.Join(skippedTests.Tests.toString(), prettySeparator)
 	} else {
 		return errors.New("only plain text format is supported")
 	}
-	
-	err := os.WriteFile(skippedFileName, []byte(testCodesSingleString), 0644)
+
+	err := os.WriteFile(SkippedFileName, []byte(testCodesSingleString), 0644)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func readSkippedTests(fileName string) (SkippedTests, error) {
+func readSkippedTests(fileName string, fileFormat FileFormat) (SkippedTests, error) {
 	var skippedTests SkippedTests
-	contents, err := os.ReadFile(skippedFileName)
+	var contents []byte
+	var testSet TestSet
+	contents, err := os.ReadFile(SkippedFileName)
 	if err != nil {
 		return skippedTests, errors.New("error occurred in reading the file")
 	}
 
-	contentString := string(contents)
-	var testSlice []string
-	if len(strings.TrimSpace(contentString)) > 0 {
-		testSlice = strings.Split(contentString, delimiter)
+	if fileFormat == PlainText {
+		contentString := string(contents)
+		var testCodeStrings []string
+		if len(strings.TrimSpace(contentString)) > 0 {
+			testCodeStrings = strings.Split(contentString, Separator)
+		}
+		testSet = makeTestSet(testCodeStrings)
+	} else {
+		return skippedTests, errors.New("only plain text format is supported")
 	}
-	testSet := makeTestSet(testSlice)
+
 	skippedTests.Tests = testSet
 	return skippedTests, nil
 }

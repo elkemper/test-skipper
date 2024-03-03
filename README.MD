@@ -1,6 +1,6 @@
 # test-skipper (tssk) - Manage skipped tests in the repository
 
-
+Using commands 'skip' or 'unskip' you can easily modify the 'skipped.cfg' file that will contain your test id's in plain text comma separated format.
 
 ### Usage:
 tssk skip <test_ids>  
@@ -12,6 +12,7 @@ unskip - Remove tests from the `skipped.cfg` file
 
 ### Examples:
 tssk skip 123 2453  
+tssk skip 123, 234 
 tssk unskip 123 
 
 ## Build 
