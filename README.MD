@@ -12,8 +12,8 @@ unskip - Remove tests from the `skipped.cfg` file
 
 ### Examples:
 tssk skip 123 2453  
-tssk skip 123, 234 
-tssk unskip 123 
+tssk skip 123, 234  
+tssk unskip 123  
 
 ## Build 
 
