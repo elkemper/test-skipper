@@ -1,5 +1,6 @@
 # test-skipper (tssk) - Manage skipped tests in the repository
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/elkemper/test-skipper)](https://goreportcard.com/report/github.com/elkemper/test-skipper)  
 Using commands 'skip' or 'unskip' you can easily modify the 'skipped.cfg' file that will contain your test id's in plain text comma separated format.
 
 ### Usage:
